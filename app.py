@@ -1,5 +1,4 @@
 import json
-import os
 import secrets
 import sqlite3
 from datetime import date, datetime, timedelta
@@ -25,6 +24,7 @@ from config import Config
 
 app = Flask(__name__)
 app.config.from_object(Config)
+LIFT_PROJECTION_FACTOR = 0.03  # Epley-inspired burnout coefficient for suggestion-only projected max changes.
 
 
 def get_db() -> sqlite3.Connection:
@@ -236,7 +236,7 @@ def seed_data() -> None:
         if not exists:
             db.execute(
                 "INSERT INTO users(username, password_hash, role, athlete_id, created_at) VALUES (?, ?, 'athlete', ?, ?)",
-                (username, generate_password_hash("athlete123!"), athlete["id"], now),
+                (username, generate_password_hash(app.config["ATHLETE_DEFAULT_PASSWORD"]), athlete["id"], now),
             )
     db.commit()
 
@@ -309,19 +309,23 @@ def clean_text(value: str, max_len: int = 255) -> str:
     return value
 
 
-def parse_mark_to_inches(mark: str):
+def parse_mark_to_inches(mark: str) -> float | None:
     mark = (mark or "").strip()
     if not mark:
         return None
-    if "'" in mark:
-        parts = mark.replace('"', "").split("'")
-        feet = float(parts[0] or 0)
-        inches = float(parts[1] or 0)
-        return feet * 12 + inches
-    return float(mark) * 12
+    cleaned = mark.replace('"', "")
+    try:
+        if "'" in cleaned:
+            feet_part, inches_part = (cleaned.split("'", 1) + [""])[:2]
+            feet = float(feet_part.strip() or 0)
+            inches = float(inches_part.strip() or 0)
+            return feet * 12 + inches
+        return float(cleaned) * 12
+    except ValueError as exc:
+        raise ValueError("Invalid distance format.") from exc
 
 
-def inches_to_display(inches):
+def inches_to_display(inches: float | None) -> str:
     if inches is None:
         return ""
     feet = int(inches // 12)
@@ -330,7 +334,7 @@ def inches_to_display(inches):
     return f"{feet}' {rem}\" ({meters}m)"
 
 
-def compute_alert(best_inches: float, pr_inches: float | None) -> str:
+def compute_alert(best_inches: float | None, pr_inches: float | None) -> str:
     if best_inches is None:
         return "Missing data"
     if not pr_inches or pr_inches <= 0:
@@ -542,6 +546,7 @@ def create_practice():
         try:
             ordered_module_ids = [int(x) for x in json.loads(module_order_raw)]
         except (json.JSONDecodeError, TypeError, ValueError):
+            flash("Invalid module list; please add modules again.", "error")
             ordered_module_ids = []
 
         if not title or not practice_date or not ordered_module_ids or not athlete_ids:
@@ -664,9 +669,13 @@ def submit_result():
     completed = 1 if request.form.get("completed") == "on" else 0
     note = clean_text(request.form.get("note"), app.config["MAX_FORM_TEXT"])
 
-    low_mark = parse_mark_to_inches(request.form.get("low_mark")) if request.form.get("low_mark") else None
-    typical_mark = parse_mark_to_inches(request.form.get("typical_mark")) if request.form.get("typical_mark") else None
-    best_mark = parse_mark_to_inches(request.form.get("best_mark")) if request.form.get("best_mark") else None
+    try:
+        low_mark = parse_mark_to_inches(request.form.get("low_mark")) if request.form.get("low_mark") else None
+        typical_mark = parse_mark_to_inches(request.form.get("typical_mark")) if request.form.get("typical_mark") else None
+        best_mark = parse_mark_to_inches(request.form.get("best_mark")) if request.form.get("best_mark") else None
+    except ValueError:
+        flash("Invalid throw mark format. Use feet or feet'inches (example: 44'6).", "error")
+        return redirect(url_for("athlete_today"))
 
     valid_assignment = db.execute(
         "SELECT id FROM practice_assignments WHERE id = ? AND athlete_id = ?",
@@ -710,7 +719,7 @@ def submit_lift():
     burnout_reps = int(request.form.get("burnout_reps", 0) or 0)
     weight_used = float(request.form.get("weight_used", 0) or 0)
 
-    projected = round((burnout_reps * weight_used * 0.03), 1) if burnout_reps and weight_used else 0.0
+    projected = round((burnout_reps * weight_used * LIFT_PROJECTION_FACTOR), 1) if burnout_reps and weight_used else 0.0
 
     if not lift_name:
         flash("Lift name is required.", "error")
@@ -755,9 +764,10 @@ def submit_meet():
     try:
         distance_inches = parse_mark_to_inches(request.form.get("distance"))
     except ValueError:
+        flash("Invalid distance format. Use feet or feet'inches (example: 160'3).", "error")
         distance_inches = None
 
-    if not event or not distance_inches:
+    if not event or distance_inches is None:
         flash("Event and distance are required for meet entries.", "error")
         return redirect(url_for("athlete_today"))
 
@@ -988,6 +998,8 @@ def server_error(_error):
 
 
 with app.app_context():
+    if app.config["ENFORCE_DEFAULT_PASSWORD_CHANGE"] and not app.config["ADMIN_PASSWORD_FROM_ENV"]:
+        raise RuntimeError("Set BAYOU_ADMIN_PASSWORD before startup when password-change enforcement is enabled.")
     init_db()
     seed_data()
 

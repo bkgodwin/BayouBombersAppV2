@@ -18,7 +18,7 @@
         {% else %}<p>No meet entries this week.</p>{% endfor %}
         <h3>Coach Notes</h3>
         {% for note in report['notes'] %}
-          <p>{{ note['created_at'][:10] }} ({{ note['context'] }}): {{ note['note'] }}</p>
+          <p>{{ note['created_at'].split('T')[0] }} ({{ note['context'] }}): {{ note['note'] }}</p>
         {% else %}<p>No notes this week.</p>{% endfor %}
       </article>
     {% else %}

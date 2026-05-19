@@ -17,16 +17,31 @@ if (liveStatus) {
       if (!response.ok) return;
       const payload = await response.json();
       if (!Array.isArray(payload)) return;
-      liveStatus.innerHTML = payload.map((row) => `
-        <article class="status-card">
-          <h3>${row.athlete}</h3>
-          <p>Completion: ${row.completion}%</p>
-          <p>Best Mark: ${row.best_mark || 'N/A'}</p>
-          <p>Status: ${row.alert}</p>
-        </article>
-      `).join('');
+      liveStatus.innerHTML = '';
+      payload.forEach((row) => {
+        if (!row.athlete) {
+          console.warn('Live status payload missing athlete name', row);
+        }
+        const card = document.createElement('article');
+        card.className = 'status-card';
+
+        const title = document.createElement('h3');
+        title.textContent = row.athlete || 'Athlete';
+        const completion = document.createElement('p');
+        completion.textContent = `Completion: ${row.completion || 0}%`;
+        const mark = document.createElement('p');
+        mark.textContent = `Best Mark: ${row.best_mark || 'N/A'}`;
+        const status = document.createElement('p');
+        status.textContent = `Status: ${row.alert || 'N/A'}`;
+
+        card.appendChild(title);
+        card.appendChild(completion);
+        card.appendChild(mark);
+        card.appendChild(status);
+        liveStatus.appendChild(card);
+      });
     } catch (_error) {
-      // no-op polling fallback
+      console.error('Live status polling failed');
     }
   }
 

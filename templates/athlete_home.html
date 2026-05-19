@@ -106,7 +106,7 @@
       <article class="status-card">
         <h3>Recent Lifts</h3>
         {% for lift in recent_lifts %}
-          <p>{{ lift['entry_date'] }} • {{ lift['lift_name'] }} {{ lift['weight_used'] or 0 }}x{{ lift['reps'] or 0 }} • Projection {{ lift['projected_max_increase'] or 0 }} ({{ 'Approved' if lift['approved'] else 'Pending' }})</p>
+          <p>{{ lift['entry_date'] }} • {{ lift['lift_name'] }} {{ lift['weight_used'] or 0 }} lb × {{ lift['reps'] or 0 }} reps • Projection {{ lift['projected_max_increase'] or 0 }} ({{ 'Approved' if lift['approved'] else 'Pending' }})</p>
         {% else %}<p>No lift entries yet.</p>{% endfor %}
       </article>
     </div>

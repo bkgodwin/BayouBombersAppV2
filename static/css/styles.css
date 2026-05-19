@@ -17,7 +17,8 @@ body.app-screen {
   margin: 0;
   min-height: 100vh;
   color: var(--bb-tan);
-  background-image: linear-gradient(rgba(0,0,0,.35), rgba(0,0,0,.80)), url('/static/images/metal-bg.jpg');
+  background-color: var(--bb-black);
+  background-image: linear-gradient(rgba(0,0,0,.35), rgba(0,0,0,.80)), url('../images/metal-bg.jpg');
   background-size: cover;
   background-attachment: fixed;
   font-family: Arial, Helvetica, sans-serif;

@@ -28,12 +28,22 @@ if (dropZone && moduleOrderInput) {
 
       const added = document.createElement('div');
       added.className = 'added-module';
-      added.innerHTML = `
-        <strong>${title}</strong>
-        <ul>${items.map((item) => `<li>${item}</li>`).join('')}</ul>
-        <button class="small-btn" type="button">Remove</button>
-      `;
-      added.querySelector('button').addEventListener('click', () => removeModule(moduleId, added));
+      const heading = document.createElement('strong');
+      heading.textContent = title;
+      const list = document.createElement('ul');
+      items.forEach((item) => {
+        const li = document.createElement('li');
+        li.textContent = item;
+        list.appendChild(li);
+      });
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'small-btn';
+      removeBtn.type = 'button';
+      removeBtn.textContent = 'Remove';
+      removeBtn.addEventListener('click', () => removeModule(moduleId, added));
+      added.appendChild(heading);
+      added.appendChild(list);
+      added.appendChild(removeBtn);
       dropZone.appendChild(added);
     });
   });
