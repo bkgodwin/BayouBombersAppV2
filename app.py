@@ -246,6 +246,7 @@ def generate_coach_code(db: sqlite3.Connection) -> str:
 
 def prompt_initial_admin_credentials() -> tuple[str, str]:
     if app.config["ADMIN_DEFAULT_USERNAME"] and app.config["ADMIN_DEFAULT_PASSWORD"]:
+        # The password is returned only for immediate hashing during first-run user creation.
         return app.config["ADMIN_DEFAULT_USERNAME"], app.config["ADMIN_DEFAULT_PASSWORD"]
 
     if not sys.stdin.isatty():
@@ -512,8 +513,17 @@ def register():
         role = clean_text(request.form.get("role"), 20)
         coach_code = clean_text(request.form.get("coach_code"), COACH_CODE_LENGTH)
 
-        if not is_valid_email(email) or not first_name or not last_name or len(password) < 8 or role not in {"athlete", "coach"}:
-            flash("Email, first name, last name, role, and 8+ char password are required.", "error")
+        if not is_valid_email(email):
+            flash("Enter a valid email address.", "error")
+            return render_template("register.html")
+        if not first_name or not last_name:
+            flash("First name and last name are required.", "error")
+            return render_template("register.html")
+        if len(password) < 8:
+            flash("Password must be at least 8 characters.", "error")
+            return render_template("register.html")
+        if role not in {"athlete", "coach"}:
+            flash("Select either athlete or coach role.", "error")
             return render_template("register.html")
 
         coach_user_id = None

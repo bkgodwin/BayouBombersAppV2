@@ -6,7 +6,6 @@
   <p><strong>Name:</strong> {{ user['first_name'] or '' }} {{ user['last_name'] or '' }}</p>
   <p><strong>Email:</strong> {{ user['email'] or 'N/A' }}</p>
   <p><strong>Current Coach:</strong> {{ user['coach_username'] or 'Not linked' }}</p>
-  <p><strong>Coach's Code:</strong> {{ user['coach_code'] or 'N/A' }}</p>
 
   <form method="post" class="stack-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
