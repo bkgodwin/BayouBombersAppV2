@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+{% block title %}Create Practice{% endblock %}
+{% block content %}
+<section class="create-practice">
+  <div class="practice-builder">
+    <form method="post" class="builder-left" id="practiceForm">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input type="hidden" name="module_order" id="moduleOrderInput" value="[]">
+      <h1>Create Practice</h1>
+      <label class="field-label">Title<input name="title" maxlength="120" required></label>
+      <label class="field-label">Date<input type="date" class="date-input" name="practice_date" required></label>
+      <label class="field-label">Assigned Group<input name="assigned_group" maxlength="120" placeholder="All Athletes / Shotput Group"></label>
+
+      <label class="field-label">Event Groups</label>
+      <div class="event-select-box">
+        <label>Shotput <input type="checkbox" name="event_groups" value="Shotput"></label>
+        <label>Discus <input type="checkbox" name="event_groups" value="Discus"></label>
+        <label>Javelin <input type="checkbox" name="event_groups" value="Javelin"></label>
+      </div>
+
+      <label class="field-label">Select Athletes</label>
+      <div class="scroll-box">
+        {% for athlete in athletes %}
+          <label><input type="checkbox" name="athlete_ids" value="{{ athlete['id'] }}"> {{ athlete['name'] }} ({{ athlete['event_groups'] }})</label>
+        {% endfor %}
+      </div>
+
+      <label class="field-label">Practice Notes<textarea name="notes" rows="3"></textarea></label>
+      <div id="practiceDropZone" class="practice-drop-zone"></div>
+      <button class="btn btn-red create-btn" type="submit">Create Practice Plan</button>
+    </form>
+
+    <div class="builder-right">
+      <h1>Modules</h1>
+      <div class="module-list" id="moduleLibrary">
+        {% for module in modules %}
+          <article class="module-card" data-module-id="{{ module['id'] }}">
+            <div class="module-header">
+              <h3>{{ module['name'] }}</h3>
+              <button class="small-btn expand-btn" type="button">Expand</button>
+            </div>
+            <ul class="module-preview">
+              <li>Event: {{ module['event_group'] }}</li>
+              <li>Variation: {{ module['variation'] or 'N/A' }}</li>
+              <li>Reps: {{ module['reps'] or 'N/A' }}</li>
+            </ul>
+            <button class="small-btn add-btn" type="button">Add</button>
+            <div class="module-details">
+              <p><strong>Cues:</strong> {{ module['cues'] or 'None' }}</p>
+              <p><strong>Info:</strong> {{ module['info'] or 'None' }}</p>
+              <p><strong>Measured:</strong> {{ 'Yes' if module['measured'] else 'No' }}</p>
+            </div>
+          </article>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <section class="dashboard-panel">
+    <h2>Recent Practice Plans</h2>
+    <div class="status-grid">
+      {% for plan in plans or [] %}
+      <article class="status-card">
+        <h3>{{ plan['title'] }}</h3>
+        <p>Date: {{ plan['practice_date'] }}</p>
+        <p>Group: {{ plan['assigned_group'] or 'N/A' }}</p>
+      </article>
+      {% else %}
+      <p>No plans created yet.</p>
+      {% endfor %}
+    </div>
+  </section>
+</section>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/practice-builder.js') }}"></script>
+{% endblock %}

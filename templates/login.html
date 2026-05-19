@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% block title %}Login | Bayou Bombers{% endblock %}
+{% block content %}
+<section class="center-panel login-panel">
+  <img class="main-logo" src="{{ url_for('static', filename='images/bayou-bombers-logo.png') }}" alt="Bayou Bombers logo">
+  <h1>Sign In</h1>
+  <form method="post" class="stack-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>Username<input name="username" maxlength="64" required></label>
+    <label>Password<input type="password" name="password" required></label>
+    <button class="btn btn-red" type="submit">Login</button>
+  </form>
+</section>
+{% endblock %}

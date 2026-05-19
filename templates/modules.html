@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block title %}Modules{% endblock %}
+{% block content %}
+<section class="dashboard-panel">
+  <h1>Module Library</h1>
+  <form method="post" class="grid-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>Module Name<input name="name" required maxlength="120"></label>
+    <label>Event Group<input name="event_group" placeholder="Shotput,Discus" required></label>
+    <label>Variation<input name="variation"></label>
+    <label>Reps<input name="reps"></label>
+    <label>Demo URL<input name="demo_url" type="url"></label>
+    <label>Coaching Cues<textarea name="cues" rows="2"></textarea></label>
+    <label>Info<textarea name="info" rows="2"></textarea></label>
+    <label>Measured? <input type="checkbox" name="measured"></label>
+    <button class="btn btn-red" type="submit">Create Module</button>
+  </form>
+</section>
+
+<section class="dashboard-panel">
+  <h2>Existing Modules</h2>
+  <div class="module-list">
+    {% for module in modules %}
+      <article class="module-card athlete-module">
+        <div class="module-header">
+          <h3>{{ module['name'] }}</h3>
+          <button class="small-btn expand-btn" type="button">Expand</button>
+        </div>
+        <ul class="module-preview">
+          <li>Event: {{ module['event_group'] }}</li>
+          <li>Variation: {{ module['variation'] or 'N/A' }}</li>
+          <li>Reps: {{ module['reps'] or 'N/A' }}</li>
+        </ul>
+        <div class="module-details">
+          <p><strong>Cues:</strong> {{ module['cues'] or 'None' }}</p>
+          <p><strong>Info:</strong> {{ module['info'] or 'None' }}</p>
+          <p><strong>Measured:</strong> {{ 'Yes' if module['measured'] else 'No' }}</p>
+          <p><strong>Demo:</strong> {{ module['demo_url'] or 'N/A' }}</p>
+        </div>
+      </article>
+    {% else %}
+      <p>No modules created.</p>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

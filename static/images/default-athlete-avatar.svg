@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="Athlete Avatar">
+  <circle cx="60" cy="60" r="56" fill="#232323" stroke="#EAD8B8" stroke-width="8"/>
+  <circle cx="60" cy="48" r="20" fill="#EAD8B8"/>
+  <path d="M30 96c3-18 19-28 30-28s27 10 30 28" fill="#EAD8B8"/>
+</svg>

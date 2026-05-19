@@ -1,0 +1,115 @@
+{% extends 'base.html' %}
+{% block title %}Athlete Dashboard{% endblock %}
+{% block content %}
+<section class="athlete-home">
+  <img class="background-logo" src="{{ url_for('static', filename='images/bayou-bombers-logo.png') }}" alt="">
+  <header class="athlete-header">
+    <h1>Today's Practice</h1>
+    <button class="calendar-btn"><img src="{{ url_for('static', filename='images/calendar-icon.svg') }}" alt="Calendar"></button>
+  </header>
+
+  {% if assignment %}
+    <p class="muted"><strong>{{ assignment['title'] }}</strong> • {{ assignment['practice_date'] }}</p>
+    <p class="muted">{{ assignment['notes'] }}</p>
+
+    <main class="athlete-practice-list">
+      {% for module in modules %}
+      <article class="module-card athlete-module">
+        <div class="module-header">
+          <h3>{{ loop.index }}. {{ module['name'] }}</h3>
+          <button class="small-btn expand-btn" type="button">Expand</button>
+        </div>
+        <ul class="module-preview">
+          <li>Variation: {{ module['variation'] or 'N/A' }}</li>
+          <li>Reps: {{ module['reps'] or 'N/A' }}</li>
+          <li>Measured: {{ 'Yes' if module['measured'] else 'No' }}</li>
+        </ul>
+        <div class="module-details">
+          <p><strong>Cues:</strong> {{ module['cues'] or 'None' }}</p>
+          <p><strong>Info:</strong> {{ module['info'] or 'None' }}</p>
+          <form method="post" action="{{ url_for('submit_result') }}" class="stack-form compact-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="assignment_id" value="{{ assignment['assignment_id'] }}">
+            <input type="hidden" name="module_id" value="{{ module['module_id'] }}">
+            <label>Low Mark (ft or ft'in)
+              <input name="low_mark" placeholder="41'2">
+            </label>
+            <label>Typical Mark
+              <input name="typical_mark" placeholder="43'0">
+            </label>
+            <label>Best Mark
+              <input name="best_mark" placeholder="44'6">
+            </label>
+            <label>Optional Note
+              <textarea name="note" rows="2">{{ module['note'] or '' }}</textarea>
+            </label>
+            <label>Completed?
+              <input type="checkbox" name="completed" {% if module['completed'] %}checked{% endif %}>
+            </label>
+            <button class="btn btn-red" type="submit">Save Module Result</button>
+          </form>
+        </div>
+      </article>
+      {% endfor %}
+    </main>
+  {% else %}
+    <p>No practice assignment for today.</p>
+  {% endif %}
+
+  <section class="dashboard-panel">
+    <h2>Log Lift Result</h2>
+    <form method="post" action="{{ url_for('submit_lift') }}" class="grid-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label>Lift<input name="lift_name" required></label>
+      <label>Week<input name="week_no" type="number" min="1" max="6"></label>
+      <label>Sets<input name="sets" type="number" min="1"></label>
+      <label>Reps<input name="reps" type="number" min="1"></label>
+      <label>Target %<input name="target_percent" type="number" step="0.1"></label>
+      <label>Burnout Reps<input name="burnout_reps" type="number" min="0"></label>
+      <label>Weight Used<input name="weight_used" type="number" step="0.1"></label>
+      <button class="btn btn-red" type="submit">Submit Lift</button>
+    </form>
+  </section>
+
+  <section class="dashboard-panel">
+    <h2>Log Meet Performance</h2>
+    <form method="post" action="{{ url_for('submit_meet') }}" class="grid-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label>Event
+        <select name="event" required>
+          <option value="">--select--</option>
+          <option>Shotput</option>
+          <option>Discus</option>
+          <option>Javelin</option>
+        </select>
+      </label>
+      <label>Distance<input name="distance" placeholder="44'7" required></label>
+      <label>Date<input type="date" name="entry_date"></label>
+      <label>Location<input name="location"></label>
+      <label>Attempts (optional comma-separated)
+        <input name="attempts" placeholder="42'0, 43'6, 44'1">
+      </label>
+      <label>Notes<textarea name="notes" rows="2"></textarea></label>
+      <button class="btn btn-red" type="submit">Submit Meet Entry</button>
+    </form>
+  </section>
+
+  <section class="dashboard-panel">
+    <h2>Recent Data</h2>
+    <div class="status-grid">
+      <article class="status-card">
+        <h3>Recent Meets</h3>
+        {% for meet in recent_meets %}
+          <p>{{ meet['entry_date'] }} • {{ meet['event'] }} • {{ inches_to_display(meet['distance_inches']) }} @ {{ meet['location'] or 'N/A' }}</p>
+        {% else %}<p>No meet entries yet.</p>{% endfor %}
+      </article>
+      <article class="status-card">
+        <h3>Recent Lifts</h3>
+        {% for lift in recent_lifts %}
+          <p>{{ lift['entry_date'] }} • {{ lift['lift_name'] }} {{ lift['weight_used'] or 0 }} lb × {{ lift['reps'] or 0 }} reps • Projection {{ lift['projected_max_increase'] or 0 }} ({{ 'Approved' if lift['approved'] else 'Pending' }})</p>
+        {% else %}<p>No lift entries yet.</p>{% endfor %}
+      </article>
+    </div>
+  </section>
+</section>
+{% endblock %}

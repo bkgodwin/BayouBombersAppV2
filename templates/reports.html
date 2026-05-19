@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% block title %}Weekly Reports{% endblock %}
+{% block content %}
+<section class="dashboard-panel">
+  <h1>Weekly Reports</h1>
+  <p>{{ week_start }} to {{ week_end }}</p>
+  <div class="status-grid">
+    {% for report in reports %}
+      <article class="status-card">
+        <h2>{{ report['athlete'] }}</h2>
+        <p><strong>Best Mark:</strong> {{ report['best'] or 'N/A' }}</p>
+        <p><strong>Worst Mark:</strong> {{ report['worst'] or 'N/A' }}</p>
+        <p><strong>Completion:</strong> {{ report['completion_pct'] }}%</p>
+        <p><strong>Status:</strong> {{ report['flag'] }}</p>
+        <h3>Meets</h3>
+        {% for meet in report['meets'] %}
+          <p>{{ meet['entry_date'] }} - {{ meet['event'] }} - {{ inches_to_display(meet['distance_inches']) }}</p>
+        {% else %}<p>No meet entries this week.</p>{% endfor %}
+        <h3>Coach Notes</h3>
+        {% for note in report['notes'] %}
+          <p>{{ note['created_at'].split('T')[0] }} ({{ note['context'] }}): {{ note['note'] }}</p>
+        {% else %}<p>No notes this week.</p>{% endfor %}
+      </article>
+    {% else %}
+      <p>No athletes found.</p>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

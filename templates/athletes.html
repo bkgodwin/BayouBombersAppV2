@@ -1,0 +1,36 @@
+{% extends 'base.html' %}
+{% block title %}Athletes{% endblock %}
+{% block content %}
+<section class="dashboard-panel">
+  <h1>Athlete Management</h1>
+  <form method="post" class="grid-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>Name<input name="name" maxlength="120" required></label>
+    <label>Sex<input name="sex" maxlength="20"></label>
+    <fieldset>
+      <legend>Event Groups</legend>
+      <label><input type="checkbox" name="event_groups" value="Shotput"> Shotput</label>
+      <label><input type="checkbox" name="event_groups" value="Discus"> Discus</label>
+      <label><input type="checkbox" name="event_groups" value="Javelin"> Javelin</label>
+    </fieldset>
+    <label>Login Username<input name="username" maxlength="64" required></label>
+    <label>Login Password<input type="password" name="password" minlength="8" required></label>
+    <button class="btn btn-red" type="submit">Create Athlete + Account</button>
+  </form>
+</section>
+
+<section class="dashboard-panel">
+  <h2>Roster</h2>
+  <div class="status-grid">
+    {% for athlete in athletes %}
+      <article class="status-card">
+        <h3>{{ athlete['name'] }}</h3>
+        <p>Sex: {{ athlete['sex'] or 'N/A' }}</p>
+        <p>Groups: {{ athlete['event_groups'] }}</p>
+      </article>
+    {% else %}
+      <p>No athletes found.</p>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

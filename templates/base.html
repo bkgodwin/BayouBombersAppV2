@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Bayou Bombers{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body class="app-screen">
+  <header class="top-nav">
+    <div class="brand">Bayou Bombers Throws OS</div>
+    {% if session.get('user_id') %}
+      <nav class="nav-links">
+        {% if session.get('role') == 'coach' %}
+          <a class="btn btn-red" href="{{ url_for('coach_home') }}">Coach Home</a>
+          <a class="btn btn-red" href="{{ url_for('create_practice') }}">Create Practice</a>
+          <a class="btn btn-red" href="{{ url_for('modules_page') }}">Modules</a>
+          <a class="btn btn-red" href="{{ url_for('athletes_page') }}">Athletes</a>
+          <a class="btn btn-orange" href="{{ url_for('reports_page') }}">Reports</a>
+        {% elif session.get('role') == 'athlete' %}
+          <a class="btn btn-red" href="{{ url_for('athlete_today') }}">Today's Practice</a>
+        {% endif %}
+      </nav>
+      <form method="post" action="{{ url_for('logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-pill" type="submit">Logout</button>
+      </form>
+    {% endif %}
+  </header>
+
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <section class="flash-wrap">
+      {% for category, message in messages %}
+        <div class="flash {{ category }}">{{ message }}</div>
+      {% endfor %}
+      </section>
+    {% endif %}
+  {% endwith %}
+
+  <main class="page-shell">
+    {% block content %}{% endblock %}
+  </main>
+
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
