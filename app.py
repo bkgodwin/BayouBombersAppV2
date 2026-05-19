@@ -211,7 +211,10 @@ def ensure_schema_updates() -> None:
 
 
 def build_unique_username(db: sqlite3.Connection, email: str) -> str:
-    base = "".join(ch for ch in email.split("@", 1)[0].lower() if ch.isalnum()) or "user"
+    base_raw = "".join(ch for ch in email.split("@", 1)[0].lower() if ch.isalnum())
+    if not base_raw:
+        base_raw = f"user{secrets.randbelow(10000):04d}"
+    base = base_raw
     candidate = base
     suffix = 1
     while db.execute("SELECT id FROM users WHERE username = ?", (candidate,)).fetchone():
@@ -246,7 +249,7 @@ def prompt_initial_admin_credentials() -> tuple[str, str]:
 
     if not sys.stdin.isatty():
         raise RuntimeError(
-            "No admin user exists yet. Start the app in a console to set first-run admin credentials, "
+            "No admin user exists yet. Start the app in an interactive terminal to set first-run admin credentials, "
             "or set BAYOU_ADMIN_USERNAME and BAYOU_ADMIN_PASSWORD."
         )
 
@@ -497,14 +500,18 @@ def register():
         role = clean_text(request.form.get("role"), 20)
         coach_code = clean_text(request.form.get("coach_code"), 16)
 
-        if (
-            "@" not in email
-            or "." not in email
-            or not first_name
-            or not last_name
-            or len(password) < 8
-            or role not in {"athlete", "coach"}
-        ):
+        email_parts = email.split("@")
+        email_local = email_parts[0] if len(email_parts) == 2 else ""
+        email_domain = email_parts[1] if len(email_parts) == 2 else ""
+        valid_email = (
+            len(email_parts) == 2
+            and bool(email_local)
+            and "." in email_domain
+            and not email_domain.startswith(".")
+            and not email_domain.endswith(".")
+        )
+
+        if not valid_email or not first_name or not last_name or len(password) < 8 or role not in {"athlete", "coach"}:
             flash("Email, first name, last name, role, and 8+ char password are required.", "error")
             return render_template("register.html")
 
