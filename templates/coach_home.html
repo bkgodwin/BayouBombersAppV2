@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+{% block title %}Coach Home{% endblock %}
+{% block content %}
+<section class="coach-home">
+  <img class="main-logo" src="{{ url_for('static', filename='images/bayou-bombers-logo.png') }}" alt="Bayou Bombers logo">
+  <div class="home-grid">
+    <nav class="main-actions">
+      <a class="btn btn-red" href="{{ url_for('create_practice') }}">Create Practice</a>
+      <a class="btn btn-red" href="{{ url_for('reports_page') }}">Reports</a>
+      <a class="btn btn-red" href="{{ url_for('athletes_page') }}">Athletes</a>
+      <a class="btn btn-orange" href="{{ url_for('modules_page') }}">Modules</a>
+    </nav>
+
+    <aside class="today-panel">
+      <div class="today-head">
+        <h2>Today's Practice</h2>
+        <button class="calendar-btn"><img src="{{ url_for('static', filename='images/calendar-icon.svg') }}" alt="Calendar"></button>
+      </div>
+      {% for event_name, athletes in event_cards.items() %}
+      <div class="event-card">
+        <h3>{{ event_name }}</h3>
+        <div class="avatar-row">
+          {% for athlete in athletes[:7] %}
+            <img class="avatar" src="{{ athlete['avatar'] }}" alt="{{ athlete['name'] }}">
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </aside>
+  </div>
+
+  <section class="dashboard-panel">
+    <h2>Live Dashboard ({{ today }})</h2>
+    <div id="liveStatus" class="status-grid" data-poll="{{ poll_seconds }}">
+      {% if assignments %}
+        {% for row in assignments %}
+          {% set completion = ((row['completed_modules'] or 0) / (row['total_modules'] or 1) * 100) | round(0) %}
+          <article class="status-card">
+            <h3>{{ row['name'] }}</h3>
+            <p>Completion: {{ completion }}%</p>
+            <p>Best Mark: {{ row['best_mark_inches'] and ('%.1f in'|format(row['best_mark_inches'])) or 'N/A' }}</p>
+          </article>
+        {% endfor %}
+      {% else %}
+        <p>No assignments for today yet.</p>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="dashboard-panel">
+    <h2>Add Coach Note</h2>
+    <form method="post" action="{{ url_for('add_note') }}" class="stack-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <label>Athlete ID (optional)<input name="athlete_id" type="number" min="1"></label>
+      <label>Practice Date (optional)<input name="practice_date" type="date"></label>
+      <label>Context<input name="context" maxlength="64" placeholder="practice day / throw result / weekly report" required></label>
+      <label>Note<textarea name="note" rows="3" required></textarea></label>
+      <button class="btn btn-red" type="submit">Save Note</button>
+    </form>
+  </section>
+</section>
+{% endblock %}
