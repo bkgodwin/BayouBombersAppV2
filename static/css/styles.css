@@ -12,6 +12,7 @@
 }
 
 * { box-sizing: border-box; }
+body { font-family: Arial, Helvetica, sans-serif; }
 
 body.app-screen {
   margin: 0;
@@ -21,7 +22,6 @@ body.app-screen {
   background-image: linear-gradient(rgba(0,0,0,.35), rgba(0,0,0,.80)), url('../images/metal-bg.jpg');
   background-size: cover;
   background-attachment: fixed;
-  font-family: Arial, Helvetica, sans-serif;
 }
 
 .home-screen {
@@ -30,7 +30,6 @@ body.app-screen {
   color: var(--bb-tan);
   background-color: #151515;
   background-image: none;
-  font-family: Arial, Helvetica, sans-serif;
 }
 
 .main-logo {

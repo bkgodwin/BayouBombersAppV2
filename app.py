@@ -28,6 +28,7 @@ from config import Config
 app = Flask(__name__)
 app.config.from_object(Config)
 LIFT_PROJECTION_FACTOR = 0.03  # Epley-inspired burnout coefficient for suggestion-only projected max changes.
+COACH_CODE_LENGTH = 8
 
 
 def get_db() -> sqlite3.Connection:
@@ -237,7 +238,7 @@ def lookup_coach_id_by_code(db: sqlite3.Connection, coach_code: str) -> int | No
 def generate_coach_code(db: sqlite3.Connection) -> str:
     alphabet = string.ascii_uppercase + string.digits
     while True:
-        code = "".join(secrets.choice(alphabet) for _ in range(8))
+        code = "".join(secrets.choice(alphabet) for _ in range(COACH_CODE_LENGTH))
         exists = db.execute("SELECT id FROM users WHERE coach_code = ?", (code,)).fetchone()
         if not exists:
             return code
@@ -413,6 +414,17 @@ def clean_text(value: str, max_len: int = 255) -> str:
     return value
 
 
+def is_valid_email(email: str) -> bool:
+    email_parts = (email or "").split("@")
+    if len(email_parts) != 2:
+        return False
+    email_local = email_parts[0]
+    email_domain = email_parts[1]
+    if not email_local or "." not in email_domain:
+        return False
+    return not email_domain.startswith(".") and not email_domain.endswith(".")
+
+
 def parse_mark_to_inches(mark: str) -> float | None:
     mark = (mark or "").strip()
     if not mark:
@@ -498,20 +510,9 @@ def register():
         last_name = clean_text(request.form.get("last_name"), 80)
         password = request.form.get("password", "")
         role = clean_text(request.form.get("role"), 20)
-        coach_code = clean_text(request.form.get("coach_code"), 16)
+        coach_code = clean_text(request.form.get("coach_code"), COACH_CODE_LENGTH)
 
-        email_parts = email.split("@")
-        email_local = email_parts[0] if len(email_parts) == 2 else ""
-        email_domain = email_parts[1] if len(email_parts) == 2 else ""
-        valid_email = (
-            len(email_parts) == 2
-            and bool(email_local)
-            and "." in email_domain
-            and not email_domain.startswith(".")
-            and not email_domain.endswith(".")
-        )
-
-        if not valid_email or not first_name or not last_name or len(password) < 8 or role not in {"athlete", "coach"}:
+        if not is_valid_email(email) or not first_name or not last_name or len(password) < 8 or role not in {"athlete", "coach"}:
             flash("Email, first name, last name, role, and 8+ char password are required.", "error")
             return render_template("register.html")
 
@@ -1040,7 +1041,7 @@ def athlete_account():
     db = get_db()
     if request.method == "POST":
         validate_csrf()
-        submitted_code = clean_text(request.form.get("coach_code"), 16)
+        submitted_code = clean_text(request.form.get("coach_code"), COACH_CODE_LENGTH)
         coach_user_id = lookup_coach_id_by_code(db, submitted_code) if submitted_code else None
         if submitted_code and not coach_user_id:
             flash("Coach code not found.", "error")
