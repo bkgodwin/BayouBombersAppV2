@@ -1,6 +1,9 @@
 import json
+import string
 import secrets
 import sqlite3
+import sys
+from getpass import getpass
 from datetime import date, datetime, timedelta
 from functools import wraps
 from pathlib import Path
@@ -25,6 +28,7 @@ from config import Config
 app = Flask(__name__)
 app.config.from_object(Config)
 LIFT_PROJECTION_FACTOR = 0.03  # Epley-inspired burnout coefficient for suggestion-only projected max changes.
+COACH_CODE_LENGTH = 8
 
 
 def get_db() -> sqlite3.Connection:
@@ -51,11 +55,17 @@ def init_db() -> None:
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT NOT NULL UNIQUE,
+            email TEXT UNIQUE,
+            first_name TEXT,
+            last_name TEXT,
             password_hash TEXT NOT NULL,
             role TEXT NOT NULL CHECK(role IN ('coach', 'athlete')),
             athlete_id INTEGER,
+            coach_code TEXT,
+            coach_user_id INTEGER,
             created_at TEXT NOT NULL,
-            FOREIGN KEY(athlete_id) REFERENCES athletes(id) ON DELETE SET NULL
+            FOREIGN KEY(athlete_id) REFERENCES athletes(id) ON DELETE SET NULL,
+            FOREIGN KEY(coach_user_id) REFERENCES users(id) ON DELETE SET NULL
         );
 
         CREATE TABLE IF NOT EXISTS athletes (
@@ -178,7 +188,92 @@ def init_db() -> None:
         );
         """
     )
+    ensure_schema_updates()
     db.commit()
+
+
+def ensure_schema_updates() -> None:
+    db = get_db()
+    columns = {row["name"] for row in db.execute("PRAGMA table_info(users)").fetchall()}
+
+    if "email" not in columns:
+        db.execute("ALTER TABLE users ADD COLUMN email TEXT")
+    if "first_name" not in columns:
+        db.execute("ALTER TABLE users ADD COLUMN first_name TEXT")
+    if "last_name" not in columns:
+        db.execute("ALTER TABLE users ADD COLUMN last_name TEXT")
+    if "coach_code" not in columns:
+        db.execute("ALTER TABLE users ADD COLUMN coach_code TEXT")
+    if "coach_user_id" not in columns:
+        db.execute("ALTER TABLE users ADD COLUMN coach_user_id INTEGER")
+
+    db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_unique ON users(email) WHERE email IS NOT NULL")
+    db.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_coach_code_unique ON users(coach_code) WHERE coach_code IS NOT NULL")
+
+
+def build_unique_username(db: sqlite3.Connection, email: str) -> str:
+    base_raw = "".join(ch for ch in email.split("@", 1)[0].lower() if ch.isalnum())
+    if not base_raw:
+        base_raw = f"user{secrets.randbelow(10000):04d}"
+    base = base_raw
+    candidate = base
+    suffix = 1
+    while db.execute("SELECT id FROM users WHERE username = ?", (candidate,)).fetchone():
+        suffix += 1
+        candidate = f"{base}{suffix}"
+    return candidate
+
+
+def lookup_coach_id_by_code(db: sqlite3.Connection, coach_code: str) -> int | None:
+    cleaned_code = "".join(ch for ch in (coach_code or "").upper() if ch.isalnum())
+    if not cleaned_code:
+        return None
+    coach = db.execute(
+        "SELECT id FROM users WHERE role = 'coach' AND coach_code = ?",
+        (cleaned_code,),
+    ).fetchone()
+    return coach["id"] if coach else None
+
+
+def generate_coach_code(db: sqlite3.Connection) -> str:
+    alphabet = string.ascii_uppercase + string.digits
+    while True:
+        code = "".join(secrets.choice(alphabet) for _ in range(COACH_CODE_LENGTH))
+        exists = db.execute("SELECT id FROM users WHERE coach_code = ?", (code,)).fetchone()
+        if not exists:
+            return code
+
+
+def prompt_initial_admin_credentials() -> tuple[str, str]:
+    if app.config["ADMIN_DEFAULT_USERNAME"] and app.config["ADMIN_DEFAULT_PASSWORD"]:
+        # The password is returned only for immediate hashing during first-run user creation.
+        return app.config["ADMIN_DEFAULT_USERNAME"], app.config["ADMIN_DEFAULT_PASSWORD"]
+
+    if not sys.stdin.isatty():
+        raise RuntimeError(
+            "No admin user exists yet. Start the app in an interactive terminal to set first-run admin credentials, "
+            "or set BAYOU_ADMIN_USERNAME and BAYOU_ADMIN_PASSWORD."
+        )
+
+    print("\nFirst run setup: create the initial coach admin account.")
+    while True:
+        username = clean_text(input("Admin username: "), 64)
+        if username:
+            break
+        print("Username is required.")
+
+    while True:
+        password = getpass("Admin password (8+ chars): ")
+        confirm = getpass("Confirm admin password: ")
+        if len(password) < 8:
+            print("Password must be at least 8 characters.")
+            continue
+        if password != confirm:
+            print("Passwords do not match.")
+            continue
+        break
+
+    return username, password
 
 
 def seed_data() -> None:
@@ -215,19 +310,21 @@ def seed_data() -> None:
             )
         db.commit()
 
-    admin_exists = db.execute(
-        "SELECT id FROM users WHERE username = ?", (app.config["ADMIN_DEFAULT_USERNAME"],)
-    ).fetchone()
+    admin_exists = db.execute("SELECT id FROM users WHERE role = 'coach' ORDER BY id LIMIT 1").fetchone()
     if not admin_exists:
+        admin_username, admin_password = prompt_initial_admin_credentials()
         db.execute(
             "INSERT INTO users(username, password_hash, role, created_at) VALUES (?, ?, 'coach', ?)",
             (
-                app.config["ADMIN_DEFAULT_USERNAME"],
-                generate_password_hash(app.config["ADMIN_DEFAULT_PASSWORD"]),
+                admin_username,
+                generate_password_hash(admin_password),
                 now,
             ),
         )
         db.commit()
+
+    default_coach = db.execute("SELECT id FROM users WHERE role = 'coach' ORDER BY id LIMIT 1").fetchone()
+    default_coach_id = default_coach["id"] if default_coach else None
 
     athlete_rows = db.execute("SELECT id, name FROM athletes ORDER BY id").fetchall()
     for athlete in athlete_rows:
@@ -235,8 +332,17 @@ def seed_data() -> None:
         exists = db.execute("SELECT id FROM users WHERE username = ?", (username,)).fetchone()
         if not exists:
             db.execute(
-                "INSERT INTO users(username, password_hash, role, athlete_id, created_at) VALUES (?, ?, 'athlete', ?, ?)",
-                (username, generate_password_hash(app.config["ATHLETE_DEFAULT_PASSWORD"]), athlete["id"], now),
+                """
+                INSERT INTO users(username, password_hash, role, athlete_id, coach_user_id, created_at)
+                VALUES (?, ?, 'athlete', ?, ?, ?)
+                """,
+                (
+                    username,
+                    generate_password_hash(app.config["ATHLETE_DEFAULT_PASSWORD"]),
+                    athlete["id"],
+                    default_coach_id,
+                    now,
+                ),
             )
     db.commit()
 
@@ -309,6 +415,17 @@ def clean_text(value: str, max_len: int = 255) -> str:
     return value
 
 
+def is_valid_email(email: str) -> bool:
+    email_parts = (email or "").split("@")
+    if len(email_parts) != 2:
+        return False
+    email_local = email_parts[0]
+    email_domain = email_parts[1]
+    if not email_local or "." not in email_domain:
+        return False
+    return not email_domain.startswith(".") and not email_domain.endswith(".")
+
+
 def parse_mark_to_inches(mark: str) -> float | None:
     mark = (mark or "").strip()
     if not mark:
@@ -362,11 +479,14 @@ def index():
 def login():
     if request.method == "POST":
         validate_csrf()
-        username = clean_text(request.form.get("username"), 64)
+        identifier = clean_text(request.form.get("username"), 120).lower()
         password = request.form.get("password", "")
 
         db = get_db()
-        user = db.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+        user = db.execute(
+            "SELECT * FROM users WHERE lower(username) = ? OR lower(COALESCE(email, '')) = ?",
+            (identifier, identifier),
+        ).fetchone()
         if user and check_password_hash(user["password_hash"], password):
             session.clear()
             session["user_id"] = user["id"]
@@ -378,6 +498,89 @@ def login():
         flash("Invalid credentials.", "error")
 
     return render_template("login.html")
+
+
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    if request.method == "POST":
+        validate_csrf()
+        db = get_db()
+
+        email = clean_text(request.form.get("email"), 120).lower()
+        first_name = clean_text(request.form.get("first_name"), 80)
+        last_name = clean_text(request.form.get("last_name"), 80)
+        password = request.form.get("password", "")
+        role = clean_text(request.form.get("role"), 20)
+        coach_code = clean_text(request.form.get("coach_code"), COACH_CODE_LENGTH)
+
+        if not is_valid_email(email):
+            flash("Enter a valid email address.", "error")
+            return render_template("register.html")
+        if not first_name or not last_name:
+            flash("First name and last name are required.", "error")
+            return render_template("register.html")
+        if len(password) < 8:
+            flash("Password must be at least 8 characters.", "error")
+            return render_template("register.html")
+        if role not in {"athlete", "coach"}:
+            flash("Select either athlete or coach role.", "error")
+            return render_template("register.html")
+
+        coach_user_id = None
+        if role == "athlete" and coach_code:
+            coach_user_id = lookup_coach_id_by_code(db, coach_code)
+            if not coach_user_id:
+                flash("Coach code not found. Check the code or leave blank and add it later in account settings.", "error")
+                return render_template("register.html")
+
+        athlete_id = None
+        if role == "athlete":
+            athlete_name = f"{first_name} {last_name}".strip()
+            cur = db.execute(
+                """
+                INSERT INTO athletes(name, sex, event_groups, prs_json, lift_maxes_json, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    athlete_name,
+                    "",
+                    "Shotput,Discus,Javelin",
+                    json.dumps({}),
+                    json.dumps({}),
+                    datetime.utcnow().isoformat(),
+                ),
+            )
+            athlete_id = cur.lastrowid
+
+        username = build_unique_username(db, email)
+        try:
+            db.execute(
+                """
+                INSERT INTO users(username, email, first_name, last_name, password_hash, role, athlete_id, coach_user_id, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    username,
+                    email,
+                    first_name,
+                    last_name,
+                    generate_password_hash(password),
+                    role,
+                    athlete_id,
+                    coach_user_id,
+                    datetime.utcnow().isoformat(),
+                ),
+            )
+            db.commit()
+        except sqlite3.IntegrityError:
+            db.rollback()
+            flash("That email already has an account.", "error")
+            return render_template("register.html")
+
+        flash("Registration complete. Sign in to continue.", "ok")
+        return redirect(url_for("login"))
+
+    return render_template("register.html")
 
 
 @app.route("/logout", methods=["POST"])
@@ -394,13 +597,23 @@ def logout():
 def coach_home():
     db = get_db()
     today = date.today().isoformat()
+    coach = db.execute("SELECT coach_code FROM users WHERE id = ?", (session["user_id"],)).fetchone()
     event_cards = {
         "Shotput": [],
         "Discus": [],
         "Javelin": [],
     }
 
-    athletes = db.execute("SELECT id, name, event_groups, avatar FROM athletes ORDER BY name").fetchall()
+    athletes = db.execute(
+        """
+        SELECT a.id, a.name, a.event_groups, a.avatar
+        FROM athletes a
+        JOIN users u ON u.athlete_id = a.id
+        WHERE u.role = 'athlete' AND u.coach_user_id = ?
+        ORDER BY a.name
+        """,
+        (session["user_id"],),
+    ).fetchall()
     for athlete in athletes:
         groups = [g.strip() for g in athlete["event_groups"].split(",") if g.strip()]
         for group in groups:
@@ -416,13 +629,14 @@ def coach_home():
         FROM practice_assignments pa
         JOIN practice_plans pp ON pp.id = pa.plan_id
         JOIN athletes a ON a.id = pa.athlete_id
+        JOIN users u ON u.athlete_id = a.id AND u.role = 'athlete'
         LEFT JOIN practice_plan_modules ppm ON ppm.plan_id = pp.id
         LEFT JOIN practice_results pr ON pr.assignment_id = pa.id AND pr.module_id = ppm.module_id
-        WHERE pp.practice_date = ?
+        WHERE pp.practice_date = ? AND u.coach_user_id = ?
         GROUP BY pa.id, a.id, a.name
         ORDER BY a.name
         """,
-        (today,),
+        (today, session["user_id"]),
     ).fetchall()
 
     return render_template(
@@ -430,6 +644,7 @@ def coach_home():
         event_cards=event_cards,
         today=today,
         assignments=assignments,
+        coach_code=(coach["coach_code"] if coach else None),
     )
 
 
@@ -511,8 +726,17 @@ def athletes_page():
                 )
                 athlete_id = cur.lastrowid
                 db.execute(
-                    "INSERT INTO users(username, password_hash, role, athlete_id, created_at) VALUES (?, ?, 'athlete', ?, ?)",
-                    (username, generate_password_hash(password), athlete_id, datetime.utcnow().isoformat()),
+                    """
+                    INSERT INTO users(username, password_hash, role, athlete_id, coach_user_id, created_at)
+                    VALUES (?, ?, 'athlete', ?, ?, ?)
+                    """,
+                    (
+                        username,
+                        generate_password_hash(password),
+                        athlete_id,
+                        session["user_id"],
+                        datetime.utcnow().isoformat(),
+                    ),
                 )
                 db.commit()
                 flash("Athlete created.", "ok")
@@ -521,7 +745,16 @@ def athletes_page():
                 db.rollback()
                 flash("Username already exists.", "error")
 
-    athletes = db.execute("SELECT * FROM athletes ORDER BY name").fetchall()
+    athletes = db.execute(
+        """
+        SELECT a.*
+        FROM athletes a
+        JOIN users u ON u.athlete_id = a.id
+        WHERE u.role = 'athlete' AND u.coach_user_id = ?
+        ORDER BY a.name
+        """,
+        (session["user_id"],),
+    ).fetchall()
     return render_template("athletes.html", athletes=athletes)
 
 
@@ -531,7 +764,16 @@ def athletes_page():
 def create_practice():
     db = get_db()
     modules = db.execute("SELECT * FROM modules ORDER BY name").fetchall()
-    athletes = db.execute("SELECT id, name, event_groups FROM athletes ORDER BY name").fetchall()
+    athletes = db.execute(
+        """
+        SELECT a.id, a.name, a.event_groups
+        FROM athletes a
+        JOIN users u ON u.athlete_id = a.id
+        WHERE u.role = 'athlete' AND u.coach_user_id = ?
+        ORDER BY a.name
+        """,
+        (session["user_id"],),
+    ).fetchall()
 
     if request.method == "POST":
         validate_csrf()
@@ -802,6 +1044,36 @@ def submit_meet():
     return redirect(url_for("athlete_today"))
 
 
+@app.route("/athlete/account", methods=["GET", "POST"])
+@login_required
+@role_required("athlete")
+def athlete_account():
+    db = get_db()
+    if request.method == "POST":
+        validate_csrf()
+        submitted_code = clean_text(request.form.get("coach_code"), COACH_CODE_LENGTH)
+        coach_user_id = lookup_coach_id_by_code(db, submitted_code) if submitted_code else None
+        if submitted_code and not coach_user_id:
+            flash("Coach code not found.", "error")
+            return redirect(url_for("athlete_account"))
+
+        db.execute("UPDATE users SET coach_user_id = ? WHERE id = ?", (coach_user_id, session["user_id"]))
+        db.commit()
+        flash("Account settings updated.", "ok")
+        return redirect(url_for("athlete_account"))
+
+    user = db.execute(
+        """
+        SELECT u.email, u.first_name, u.last_name, c.username AS coach_username, c.coach_code
+        FROM users u
+        LEFT JOIN users c ON c.id = u.coach_user_id
+        WHERE u.id = ?
+        """,
+        (session["user_id"],),
+    ).fetchone()
+    return render_template("athlete_account.html", user=user)
+
+
 @app.route("/coach/reports")
 @login_required
 @role_required("coach")
@@ -810,7 +1082,16 @@ def reports_page():
     week_end = date.today()
     week_start = week_end - timedelta(days=6)
 
-    athlete_rows = db.execute("SELECT id, name, prs_json FROM athletes ORDER BY name").fetchall()
+    athlete_rows = db.execute(
+        """
+        SELECT a.id, a.name, a.prs_json
+        FROM athletes a
+        JOIN users u ON u.athlete_id = a.id
+        WHERE u.role = 'athlete' AND u.coach_user_id = ?
+        ORDER BY a.name
+        """,
+        (session["user_id"],),
+    ).fetchall()
     reports = []
     for athlete in athlete_rows:
         results = db.execute(
@@ -915,6 +1196,19 @@ def add_note():
     return redirect(url_for("coach_home"))
 
 
+@app.route("/coach/generate-code", methods=["POST"])
+@login_required
+@role_required("coach")
+def generate_coach_code_route():
+    validate_csrf()
+    db = get_db()
+    code = generate_coach_code(db)
+    db.execute("UPDATE users SET coach_code = ? WHERE id = ?", (code, session["user_id"]))
+    db.commit()
+    flash(f"New coach code generated: {code}", "ok")
+    return redirect(url_for("coach_home"))
+
+
 @app.route("/coach/approve-lift/<int:lift_id>", methods=["POST"])
 @login_required
 @role_required("coach")
@@ -942,14 +1236,15 @@ def live_status_api():
                MAX(pr.best_mark_inches) AS best_mark_inches
         FROM practice_assignments pa
         JOIN athletes a ON a.id = pa.athlete_id
+        JOIN users u ON u.athlete_id = a.id AND u.role = 'athlete'
         JOIN practice_plans pp ON pp.id = pa.plan_id
         LEFT JOIN practice_plan_modules ppm ON ppm.plan_id = pp.id
         LEFT JOIN practice_results pr ON pr.assignment_id = pa.id AND pr.module_id = ppm.module_id
-        WHERE pp.practice_date = ?
+        WHERE pp.practice_date = ? AND u.coach_user_id = ?
         GROUP BY a.id
         ORDER BY a.name
         """,
-        (today,),
+        (today, session["user_id"]),
     ).fetchall()
 
     payload = []

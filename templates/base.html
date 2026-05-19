@@ -6,7 +6,7 @@
   <title>{% block title %}Bayou Bombers{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
 </head>
-<body class="app-screen">
+<body class="{% block body_class %}app-screen{% endblock %}">
   <header class="top-nav">
     <div class="brand">Bayou Bombers Throws OS</div>
     {% if session.get('user_id') %}
@@ -19,6 +19,7 @@
           <a class="btn btn-orange" href="{{ url_for('reports_page') }}">Reports</a>
         {% elif session.get('role') == 'athlete' %}
           <a class="btn btn-red" href="{{ url_for('athlete_today') }}">Today's Practice</a>
+          <a class="btn btn-orange" href="{{ url_for('athlete_account') }}">Account</a>
         {% endif %}
       </nav>
       <form method="post" action="{{ url_for('logout') }}">
