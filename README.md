@@ -8,6 +8,7 @@ This implementation follows the provided workflow and UI instruction PDFs, with 
 
 ### Authentication and Security
 - Role-based login (`coach`, `athlete`)
+- Public registration flow for new users (email, name, password, role)
 - Passwords are **hashed** with Werkzeug (`generate_password_hash`) and never stored in plaintext
 - CSRF protection on all form POST actions
 - Server-side authorization checks on every protected route
@@ -18,6 +19,7 @@ This implementation follows the provided workflow and UI instruction PDFs, with 
   - Event-group cards (Shotput / Discus / Javelin)
   - Live practice dashboard
   - Practice completion tracking
+- Generate shareable 8-character coach code for athlete roster linking
 - Create athlete profiles + athlete login accounts
 - Create reusable modules (variation, reps, measured flag, cues, info, demo URL)
 - Build and assign daily practice plans from module library
@@ -26,6 +28,7 @@ This implementation follows the provided workflow and UI instruction PDFs, with 
 - Approve projected lift max increases
 
 ### Athlete Capabilities
+- Register as athlete and optionally link to a coach with coach code
 - View today’s assigned practice
 - Expand module details and submit module results
 - Mark completion for each module
@@ -138,15 +141,19 @@ python app.py
 http://localhost:8000
 ```
 
-App bootstraps DB/tables automatically and seeds starter users/data.
+App bootstraps DB/tables automatically and seeds starter data.  
+On first run, if no coach exists and `BAYOU_ADMIN_USERNAME`/`BAYOU_ADMIN_PASSWORD` are not set,
+the app prompts in the console for initial admin username/password.
 
 ---
 
-## Seeded Login Accounts
+## Login and Registration
 
 ### Coach
-- Username: `admin`
-- Password: `ChangeMeNow!`
+- First run: create coach admin credentials in console prompt, or set:
+  - `BAYOU_ADMIN_USERNAME`
+  - `BAYOU_ADMIN_PASSWORD`
+- Additional coach accounts can be created through the Register page.
 
 ### Athlete (examples)
 - Username: `averyjames`
@@ -154,7 +161,8 @@ App bootstraps DB/tables automatically and seeds starter users/data.
 - Username: `liamross`
 - Password for seeded athletes: `athlete123!`
 
-> Change seeded passwords immediately in non-dev deployments.
+Use the home page **Register** option for new user accounts.
+Athletes can enter a coach code during registration or later from athlete account settings.
 
 ---
 

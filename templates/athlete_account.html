@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block title %}Athlete Account{% endblock %}
+{% block content %}
+<section class="dashboard-panel">
+  <h1>Account Settings</h1>
+  <p><strong>Name:</strong> {{ user['first_name'] or '' }} {{ user['last_name'] or '' }}</p>
+  <p><strong>Email:</strong> {{ user['email'] or 'N/A' }}</p>
+  <p><strong>Current Coach:</strong> {{ user['coach_username'] or 'Not linked' }}</p>
+  <p><strong>Current Coach Code:</strong> {{ user['coach_code'] or 'N/A' }}</p>
+
+  <form method="post" class="stack-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>Coach Code
+      <input name="coach_code" maxlength="16" placeholder="AB12CD34">
+    </label>
+    <button class="btn btn-red" type="submit">Save Coach Code</button>
+  </form>
+  <p class="muted">Leave blank and save to remove current coach link.</p>
+</section>
+{% endblock %}

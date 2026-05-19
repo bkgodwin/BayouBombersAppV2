@@ -23,8 +23,8 @@ class Config:
     MAX_FORM_TEXT = int(os.getenv("BAYOU_MAX_FORM_TEXT", "1000"))
 
     # Bootstrap admin options (password is always hashed in DB)
-    ADMIN_DEFAULT_USERNAME = os.getenv("BAYOU_ADMIN_USERNAME", "admin")
+    ADMIN_DEFAULT_USERNAME = os.getenv("BAYOU_ADMIN_USERNAME", "").strip()
     ADMIN_PASSWORD_FROM_ENV = "BAYOU_ADMIN_PASSWORD" in os.environ
-    ADMIN_DEFAULT_PASSWORD = os.getenv("BAYOU_ADMIN_PASSWORD", "ChangeMeNow!")
+    ADMIN_DEFAULT_PASSWORD = os.getenv("BAYOU_ADMIN_PASSWORD", "")
     ATHLETE_DEFAULT_PASSWORD = os.getenv("BAYOU_ATHLETE_PASSWORD", "athlete123!")
     ENFORCE_DEFAULT_PASSWORD_CHANGE = os.getenv("BAYOU_ENFORCE_PASSWORD_CHANGE", "false").lower() == "true"

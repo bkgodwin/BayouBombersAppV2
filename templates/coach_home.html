@@ -48,6 +48,16 @@
   </section>
 
   <section class="dashboard-panel">
+    <h2>Coach Code</h2>
+    <p>Share this code with athletes so they can join your roster.</p>
+    <p><strong>Current Code:</strong> {{ coach_code or 'Not generated yet' }}</p>
+    <form method="post" action="{{ url_for('generate_coach_code_route') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="btn btn-orange" type="submit">Generate New Coach Code</button>
+    </form>
+  </section>
+
+  <section class="dashboard-panel">
     <h2>Add Coach Note</h2>
     <form method="post" action="{{ url_for('add_note') }}" class="stack-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

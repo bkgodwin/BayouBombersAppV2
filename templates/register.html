@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block title %}Register | Bayou Bombers{% endblock %}
+{% block body_class %}home-screen{% endblock %}
+{% block content %}
+<section class="center-panel login-panel">
+  <img class="main-logo" src="{{ url_for('static', filename='images/bayou-bombers-logo.png') }}" alt="Bayou Bombers logo">
+  <h1>Register New User</h1>
+  <form method="post" class="stack-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>Email<input type="email" name="email" maxlength="120" required></label>
+    <label>First Name<input name="first_name" maxlength="80" required></label>
+    <label>Last Name<input name="last_name" maxlength="80" required></label>
+    <label>Password<input type="password" name="password" minlength="8" required></label>
+    <label>Role
+      <select name="role" required>
+        <option value="">--select--</option>
+        <option value="athlete">Athlete</option>
+        <option value="coach">Coach</option>
+      </select>
+    </label>
+    <label>Coach Code (athletes only, optional)<input name="coach_code" maxlength="16" placeholder="AB12CD34"></label>
+    <button class="btn btn-red" type="submit">Create Account</button>
+  </form>
+  <p class="muted"><a href="{{ url_for('login') }}">Back to sign in</a></p>
+</section>
+{% endblock %}
